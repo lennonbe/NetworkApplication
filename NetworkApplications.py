@@ -128,6 +128,7 @@ class ICMPPing(NetworkApplication):
 
         # 3. Compare the time of receipt to time of sending, producing the total network delay
         timeComparison = arrivalTime - timeVar
+        packetSize = sys.getsizeof(receivedPacket)
         # print(timeComparison)
         # 4. Unpack the packet header for useful information, including the ID
         icmpHeader = receivedPacket[20:28]
@@ -140,7 +141,7 @@ class ICMPPing(NetworkApplication):
         if p_id != ID:
             return -1
         # 6. Return total network delay
-        return timeComparison
+        return timeComparison, packetSize
 
     def doOnePing(self, destinationAddress, timeout, ID):
         # 1. Create ICMP socket
@@ -150,7 +151,7 @@ class ICMPPing(NetworkApplication):
         temp = self.sendOnePing(s, destinationAddress, ID)
         # 3. Call receiveOnePing function
         # timeDif = self.receiveOnePing(s, socket.gethostbyname(destinationAddress), ID, timeout, temp)
-        timeDif = self.receiveOnePing(s, destinationAddress, ID, timeout, temp)
+        timeDif, packSize = self.receiveOnePing(s, destinationAddress, ID, timeout, temp)
         # 4. Close ICMP socket
         s.close()
         # 5. Return total network delay
@@ -159,6 +160,8 @@ class ICMPPing(NetworkApplication):
         else:
             print("Total network delay is:")
             print(timeDif * 1000)
+
+        return timeDif * 1000, packSize
         pass
 
     def __init__(self, args):
@@ -167,10 +170,11 @@ class ICMPPing(NetworkApplication):
         address = socket.gethostbyname(args.hostname)
         # 2. Call doOnePing function, approximately every second
         # self.doOnePing(args.hostname, 1000, 1)
-        self.doOnePing(address, 1000, 1)
+        temp1, temp2 = self.doOnePing(address, 1000, 1)
         # 3. Print out the returned delay (and other relevant details) using the printOneResult method
         # self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
-        self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
+        # self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
+        self.printOneResult(address, temp2, temp1, 10)
         # 4. Continue this process until stopped
 
 

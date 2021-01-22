@@ -120,7 +120,7 @@ class ICMPPing(NetworkApplication):
 
         while True:
             receivedPacket = icmpSocket.recv(4096)
-            print(receivedPacket)
+            #print(receivedPacket)
             if receivedPacket:
                 # 2. Once received, record time of receipt, otherwise, handle a timeout
                 arrivalTime = time.time()
@@ -134,10 +134,10 @@ class ICMPPing(NetworkApplication):
         # 4. Unpack the packet header for useful information, including the ID
         icmpHeader = receivedPacket[20:28]
         typeOf, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmpHeader)
-        print(typeOf)
-        print(code)
-        print(checksum)
-        print(p_id)
+        #print(typeOf)
+        #print(code)
+        #print(checksum)
+        #print(p_id)
         # 5. Check that the ID matches between the request and reply
         if p_id != ID:
             return -1
@@ -167,14 +167,17 @@ class ICMPPing(NetworkApplication):
 
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
-        # 1. Look up hostname, resolving it to an IP address
-        address = socket.gethostbyname(args.hostname)
-        # 2. Call doOnePing function, approximately every second
-        temp1, temp2, temp3 = self.doOnePing(address, 1000, 1)
-        # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-        #self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
-        self.printOneResult(address, temp2, temp1, temp3)
-        # 4. Continue this process until stopped
+        i = 0
+        while i < 10000:
+            # 1. Look up hostname, resolving it to an IP address
+            address = socket.gethostbyname(args.hostname)
+            # 2. Call doOnePing function, approximately every second
+            temp1, temp2, temp3 = self.doOnePing(address, 1000, i)
+            # 3. Print out the returned delay (and other relevant details) using the printOneResult method
+            #self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
+            self.printOneResult(address, temp2, temp1, temp3)
+            # 4. Continue this process until stopped
+            i = i + 1
 
 
 class Traceroute(NetworkApplication):

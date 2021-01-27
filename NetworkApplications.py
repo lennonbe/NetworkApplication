@@ -94,7 +94,7 @@ class ICMPPing(NetworkApplication):
     arrivalTime = 0
 
 
-    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+    def sendOnePing(self, icmpSocket, destinationAddress, ID, data):
         # 1. Build ICMP header
         ICMP_ECHO = 8
         checksum = 0
@@ -107,7 +107,8 @@ class ICMPPing(NetworkApplication):
         header = struct.pack("BBHHH", 8, 0, checksum, ID, 1)
         #header = struct.pack("BBHHH", ICMP_ECHO, 0, checksum, ID, 1)
         # 4. Send packet using socket
-        icmpSocket.sendto(header, (destinationAddress, socket.getprotobyname('icmp')))
+        #icmpSocket.sendto(header, (destinationAddress, socket.getprotobyname('icmp')))
+        icmpSocket.sendto(header + data, (destinationAddress, socket.getprotobyname('icmp')))
         # 5. Record time of sending
         sendTime = time.time()
 
@@ -134,22 +135,18 @@ class ICMPPing(NetworkApplication):
         # 4. Unpack the packet header for useful information, including the ID
         icmpHeader = receivedPacket[20:28]
         typeOf, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmpHeader)
-        #print(typeOf)
-        #print(code)
-        #print(checksum)
-        #print(p_id)
         # 5. Check that the ID matches between the request and reply
         if p_id != ID:
             return -1
         # 6. Return total network delay
         return timeComparison, packetSize, ttp
 
-    def doOnePing(self, destinationAddress, timeout, ID):
+    def doOnePing(self, destinationAddress, timeout, ID, dataDoOne):
         # 1. Create ICMP socket
         s = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_ICMP)
         # 2. Call sendOnePing function
         # temp = self.sendOnePing(s, socket.gethostbyname(destinationAddress), ID)
-        temp = self.sendOnePing(s, destinationAddress, ID)
+        temp = self.sendOnePing(s, destinationAddress, ID, dataDoOne)
         # 3. Call receiveOnePing function
         # timeDif = self.receiveOnePing(s, socket.gethostbyname(destinationAddress), ID, timeout, temp)
         timeDif, packSize, ttpValue = self.receiveOnePing(s, destinationAddress, ID, timeout, temp)
@@ -168,11 +165,11 @@ class ICMPPing(NetworkApplication):
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
         i = 0
-        while i < 10000:
+        while i < 10:
             # 1. Look up hostname, resolving it to an IP address
             address = socket.gethostbyname(args.hostname)
             # 2. Call doOnePing function, approximately every second
-            temp1, temp2, temp3 = self.doOnePing(address, 1000, i)
+            temp1, temp2, temp3 = self.doOnePing(address, 1000, i, "Hello world!")
             # 3. Print out the returned delay (and other relevant details) using the printOneResult method
             #self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
             self.printOneResult(address, temp2, temp1, temp3)
@@ -185,6 +182,49 @@ class Traceroute(NetworkApplication):
     def __init__(self, args):
         # Please ensure you print each result using the printOneResult method!
         print('Traceroute to: %s...' % (args.hostname))
+        dst = args.hostname
+        dst_ip = socket.gethostbyname(dst)
+        hops = 30
+        ttl = 1
+        port = 33461
+        
+        
+        while True:
+        
+            receiver = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_ICMP)
+            receiver.bind(('', port))
+
+            sender = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_UDP)
+            sender.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
+
+            sender.sendto(b'',(dst_ip, port))
+
+            addr = None
+            try:
+                #print('hi1')
+                #receiver.setblocking(0)
+                data, addr = receiver.recvfrom(1024)
+                #print('hi2')
+            except socket.error:
+                raise IOError('Socket error')
+            finally:
+                receiver.close()                
+                sender.close()
+
+            #print(addr)
+
+            if addr:
+                print('{:<20} {}'.format(ttl, addr[0]))
+            else:
+                print('{:<20} *'.format(ttl))
+
+            ttl += 1
+
+            if addr[0] == dst_ip or ttl > hops:
+                break
+
+
+
 
 
 class WebServer(NetworkApplication):

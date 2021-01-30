@@ -93,89 +93,100 @@ class ICMPPing(NetworkApplication):
 
     sendTime = 0
     arrivalTime = 0
+    seq = 0
+    ICMP_ECHO_REQUEST = 8
+    Destination = 999
 
 
-    def sendOnePing(self, icmpSocket, destinationAddress, ID, data):
+    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+        # 0. Create packet
+        packet = self.packet(ID)
+        self.seq += 1
+        
+        # 1. Send packet using socket
+        icmpSocket.sendto(packet,(destinationAddress,1))
+        
+        # 2. Record time of sending
+        self.sendTime = time.time()
+
+    def packet(self,ID):
         # 1. Build ICMP header
-        ICMP_ECHO = 8
-        checksum = 0
-        header = struct.pack("BBHHH", 8, 0, checksum, ID, 1) #!BBHHH is the format of the header struct
-        # header = struct.pack("BBHHH", ICMP_ECHO, 0, checksum, ID, 1)
-        data = struct.pack("d", time.time())
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.seq)
+        
         # 2. Checksum ICMP packet using given function
-        checksum = super().checksum(header + data)
-        # 3. Insert checksum into packet
-        header = struct.pack("BBHHH", 8, 0, checksum, ID, 1)
-        #header = struct.pack("BBHHH", ICMP_ECHO, 0, checksum, ID, 1)
-        # 4. Send packet using socket
-        #icmpSocket.sendto(header, (destinationAddress, socket.getprotobyname('icmp')))
-        icmpSocket.sendto(header + data, (destinationAddress, socket.getprotobyname('icmp')))
-        # 5. Record time of sending
-        sendTime = time.time()
+        checksum = super().checksum(header)
+        
+        # 3. Insert checksum into packet by re-packing & return the packet
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
+        return header
 
-        return sendTime
-
-    def receiveOnePing(self, icmpSocket, destinationAddress, ID, timeout, timeVar):
+    def receiveOnePing(self, icmpSocket, destinationAddress, timeout):
         # 1. Wait for the socket to receive a reply
-        # receivedPacket = icmpSocket.recvfrom(1024)
-        # icmpHeader = receivedPacket[0][20:28]
-
-        while True:
-            receivedPacket = icmpSocket.recv(4096)
-            #print(receivedPacket)
-            if receivedPacket:
-                # 2. Once received, record time of receipt, otherwise, handle a timeout
-                arrivalTime = time.time()
+        startTime = time.time()
+        while startTime+timeout > time.time():
+            
+            try:
+                recPacket, addr = icmpSocket.recvfrom(1024)
+                #packetTemp = icmpSocket.recv(4096)
+            except socket.timeout:
                 break
 
-        # 3. Compare the time of receipt to time of sending, producing the total network delay
-        timeComparison = arrivalTime - timeVar
-        ttp = receivedPacket[8]
-        packetSize = sys.getsizeof(receivedPacket)
-        # print(timeComparison)
-        # 4. Unpack the packet header for useful information, including the ID
-        icmpHeader = receivedPacket[20:28]
-        typeOf, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmpHeader)
-        # 5. Check that the ID matches between the request and reply
-        if p_id != ID:
-            return -1
-        # 6. Return total network delay
-        return timeComparison, packetSize, ttp
+            # 2. Once received, record time of receipt, otherwise, handle a timeout
+            received_time = time.time()
+
+            # 3. Compare the time of receipt to time of sending, producing the total network delay
+            time_comp = received_time - self.sendTime
+            time_comp *= 1000
+
+            # 4. Unpack the packet header for useful information, including the ID
+            icmp_header = recPacket[20:28]
+            size = sys.getsizeof(recPacket) 
+            ttl = recPacket[8]
+            
+            type, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmp_header)
+            
+            # 5. Check that the ID matches between the request and reply
+            # 6. Return total network delay
+            if(type==11 and code==0):
+                
+                return(time_comp,addr,None,size, ttl)
+            elif(type==0 and code==0):
+                
+                return(time_comp,addr,self.Destination,size, ttl)
+
+        return (0, 0, 0, 0, 0)
 
     def doOnePing(self, destinationAddress, timeout, ID, dataDoOne):
-        # 1. Create ICMP socket
-        s = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_ICMP)
-        # 2. Call sendOnePing function
-        # temp = self.sendOnePing(s, socket.gethostbyname(destinationAddress), ID)
-        temp = self.sendOnePing(s, destinationAddress, ID, dataDoOne)
-        # 3. Call receiveOnePing function
-        # timeDif = self.receiveOnePing(s, socket.gethostbyname(destinationAddress), ID, timeout, temp)
-        timeDif, packSize, ttpValue = self.receiveOnePing(s, destinationAddress, ID, timeout, temp)
-        # 4. Close ICMP socket
-        s.close()
-        # 5. Return total network delay
-        if timeDif == -1:
-            print("error")
-        else:
-            print("Total network delay is:")
-            print(timeDif * 1000)
 
-        return timeDif * 1000, packSize, ttpValue
-        pass
+        # 1. Create ICMP socket, setting the ttl and timeout
+        ICMP_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
+        #ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
+        ICMP_socket.settimeout(timeout)
+        packet_id = ID
+
+        # 2. Call sendOnePing function
+        self.sendOnePing(ICMP_socket, destinationAddress, packet_id)
+
+        # 2. Call receiveOnePing function
+        timeComparison, address, dest, size, ttl = self.receiveOnePing(ICMP_socket,destinationAddress,timeout)
+
+        # 3. Close the socket and return the delay
+        ICMP_socket.close()
+        return timeComparison, address, dest, size, ttl
 
     def __init__(self, args):
         print('Ping to: %s...' % (args.hostname))
         i = 0
-        while i < 10:
+        while i < 5:
             # 1. Look up hostname, resolving it to an IP address
             address = socket.gethostbyname(args.hostname)
             # 2. Call doOnePing function, approximately every second
-            temp1, temp2, temp3 = self.doOnePing(address, 1000, i, "Hello world!")
+            timeDif, address, dest, packSize, ttl = self.doOnePing(address, 5, i, "hiya")
+            self.printOneResult(address, packSize, timeDif, ttl)
             # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-            #self.printOneResult('1.1.1.1', 50, 20.0, 150) # Example use of printOneResult - complete as appropriate
-            self.printOneResult(address, temp2, temp1, temp3)
+            #self.printOneResult(address, temp2, temp1, temp3)
             # 4. Continue this process until stopped
-            i = i + 1
+            i += 1
 
 
 class Traceroute(NetworkApplication):
@@ -202,7 +213,7 @@ class Traceroute(NetworkApplication):
 
             # 3. Compare the time of receipt to time of sending, producing the total network delay
             time_comp = received_time - self.SendingTime
-            time_comp *= 1000
+            time_comp = time_comp * 1000
 
             # 4. Unpack the packet header for useful information, including the ID
             icmp_header = recPacket[20:28]
@@ -219,23 +230,20 @@ class Traceroute(NetworkApplication):
                 
                 return(time_comp,addr,self.Destination,size)
 
-        return (0, 0, 0,0)
+        return (0, 0, 0, 0)
 
 
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 0. Create packet
         packet = self.packet(ID)
-        self.IncreaseSequence()
+        self.seq += 1
         
         # 1. Send packet using socket
         icmpSocket.sendto(packet,(destinationAddress,1))
         
         # 2. Record time of sending
         self.SendingTime = time.time()
-
-    def IncreaseSequence(self):
-        self.seq += 1
 
     def packet(self,ID):
         # 1. Build ICMP header
@@ -248,13 +256,13 @@ class Traceroute(NetworkApplication):
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
         return header
 
-    def doOnePing(self, destinationAddress, timeout,ttl, id):
+    def doOnePing(self, destinationAddress, timeout,ttl, ID):
         
         # 1. Create ICMP socket, setting the ttl and timeout
         ICMP_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
         ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
         ICMP_socket.settimeout(timeout)
-        packet_id = id
+        packet_id = ID
 
         # 2. Call sendOnePing function
         self.sendOnePing(ICMP_socket, destinationAddress, packet_id)

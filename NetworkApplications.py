@@ -7,6 +7,7 @@ import os
 import sys
 import struct
 import time
+import random
 
 
 def setupArgumentParser() -> argparse.Namespace:
@@ -179,49 +180,129 @@ class ICMPPing(NetworkApplication):
 
 class Traceroute(NetworkApplication):
 
-    def __init__(self, args):
-        # Please ensure you print each result using the printOneResult method!
-        print('Traceroute to: %s...' % (args.hostname))
-        dst = args.hostname
-        dst_ip = socket.gethostbyname(dst)
-        hops = 30
-        ttl = 1
-        port = 33461
-        
-        
-        while True:
-        
-            receiver = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_ICMP)
-            receiver.bind(('', port))
+    seq = 0
+    ICMP_ECHO_REQUEST = 8  
+    Npackets =0
+    SendingTime = 0
+    Destination=999
 
-            sender = socket.socket(socket.AF_INET,socket.SOCK_RAW, socket.IPPROTO_UDP)
-            sender.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)
 
-            sender.sendto(b'',(dst_ip, port))
-
-            addr = None
+    def receiveOnePing(self, icmpSocket, destinationAddress, timeout):
+        # 1. Wait for the socket to receive a reply
+        # 2. Once received, record time of receipt, otherwise, handle a timeout
+        # 3. Compare the time of receipt to time of sending, producing the total network delay
+        # 4. Unpack the packet header for useful information, including the ID
+        # 5. Check that the ID matches between the request and reply
+        # 6. Return total network delay
+        startTime = time.time()
+        while startTime+timeout > time.time():
+            
             try:
-                #print('hi1')
-                #receiver.setblocking(0)
-                data, addr = receiver.recvfrom(1024)
-                #print('hi2')
-            except socket.error:
-                raise IOError('Socket error')
-            finally:
-                receiver.close()                
-                sender.close()
+                recPacket, addr = icmpSocket.recvfrom(1024)
+            except socket.timeout:
+             break
 
-            #print(addr)
+            received_time = time.time()
+            self.Npackets += 1
+            Delay = received_time - self.SendingTime
+            Delay *= 1000
+            icmp_header = recPacket[20:28]
+            size = sys.getsizeof(recPacket) 
+            type, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmp_header)
+            if(type==11 and code==0):
+                return(Delay,addr,None,size)
+            elif(type==0 and code==0):
+                return(Delay,addr,self.Destination,size)
 
-            if addr:
-                print('{:<20} {}'.format(ttl, addr[0]))
+        return (0, 0, 0,0)
+
+
+
+    def sendOnePing(self, icmpSocket, destinationAddress, ID):
+        #0. Generatee packet
+        packet=self.packet(ID)
+        self.IncreaseSequence()
+        # 4. Send packet using socket
+        icmpSocket.sendto(packet,(destinationAddress,1))
+        # 5. Record time of sending
+        self.SendingTime = time.time()
+
+    def IncreaseSequence(self):
+        self.seq += 1
+
+    def packet(self,ID):
+        # 1. Build ICMP header
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.seq)
+        # 2. Checksum ICMP packet using given function
+        checksum = super().checksum(header)
+        # 3. Insert checksum into packet
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
+        return header
+
+    def doOnePing(self, destinationAddress, timeout,ttl, id):
+        
+        ICMP_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
+        ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)#set ttl
+        ICMP_socket.settimeout(timeout)
+
+        packet_id = id
+
+        self.sendOnePing(ICMP_socket, destinationAddress, packet_id)
+        delay = self.receiveOnePing(ICMP_socket,destinationAddress,timeout)
+        ICMP_socket.close()
+        return delay
+
+    def getHostname(self,addr):
+        if(addr==None):
+            return None
+        else:
+             try:
+                 host=socket.gethostbyaddr(addr[0])   
+                 return host     
+             except:
+                 return None  
+
+    def printResult(self,delay,addr,size,ttl):
+         if(delay==0 and addr==0):
+             print("Timeout")
+             return     
+         hostname = self.getHostname(addr)
+         if(hostname==None):
+             super().printOneResult(addr[0],size,delay,ttl,"unresolved host name")
+         else:
+             super().printOneResult(addr[0],size,delay,ttl,hostname[0])
+               
+    
+    def __init__(self, args):
+        
+        print('Traceroute to: %s...' % (args.hostname))
+        
+        timeout = 10
+        address_ip = socket.gethostbyname(args.hostname)
+        prev_address = None
+        
+        ttl = 1
+        id = 1
+        while ttl < 31:
+            
+            j = 0
+            while j < 3:
+                    
+                delay,addr,info,size = self.doOnePing(address_ip,timeout,ttl, id)
+                self.printResult(delay,addr,size,ttl)
+                j += 1
+                id += 1
+
+            print("")
+        
+            if prev_address != addr:
+                prev_address = addr
+                ttl +=1
             else:
-                print('{:<20} *'.format(ttl))
-
-            ttl += 1
-
-            if addr[0] == dst_ip or ttl > hops:
                 break
+            
+
+
 
 
 

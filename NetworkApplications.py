@@ -120,7 +120,7 @@ class ICMPPing(NetworkApplication):
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
         return header
 
-    def receiveOnePing(self, icmpSocket, destinationAddress, timeout):
+    def receiveOnePing(self, icmpSocket, destinationAddress, timeout, ID):
         # 1. Wait for the socket to receive a reply
         startTime = time.time()
         while startTime+timeout > time.time():
@@ -147,14 +147,12 @@ class ICMPPing(NetworkApplication):
             
             # 5. Check that the ID matches between the request and reply
             # 6. Return total network delay
-            if(type==11 and code==0):
+            if(p_id==ID):
                 
-                return(time_comp,addr,None,size, ttl)
-            elif(type==0 and code==0):
+                return (time_comp,addr,self.Destination,size, ttl)
+            else:
                 
-                return(time_comp,addr,self.Destination,size, ttl)
-
-        return (0, 0, 0, 0, 0)
+                return (0, 0, 0, 0, 0)
 
     def doOnePing(self, destinationAddress, timeout, ID, dataDoOne):
 
@@ -168,7 +166,7 @@ class ICMPPing(NetworkApplication):
         self.sendOnePing(ICMP_socket, destinationAddress, packet_id)
 
         # 2. Call receiveOnePing function
-        timeComparison, address, dest, size, ttl = self.receiveOnePing(ICMP_socket,destinationAddress,timeout)
+        timeComparison, address, dest, size, ttl = self.receiveOnePing(ICMP_socket,destinationAddress,timeout, ID)
 
         # 3. Close the socket and return the delay
         ICMP_socket.close()
@@ -229,8 +227,8 @@ class Traceroute(NetworkApplication):
             elif(type==0 and code==0):
                 
                 return(time_comp,addr,self.Destination,size)
-
-        return (0, 0, 0, 0)
+    
+            return (0, 0, 0, 0)
 
 
 

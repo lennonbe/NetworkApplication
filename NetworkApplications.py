@@ -183,6 +183,7 @@ class Traceroute(NetworkApplication):
     seq = 0
     ICMP_ECHO_REQUEST = 8  
     SendingTime = 0
+    ReceiveTime = 0
     Destination = 999
 
 
@@ -251,7 +252,7 @@ class Traceroute(NetworkApplication):
         
         # 1. Create ICMP socket, setting the ttl and timeout
         ICMP_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
-        ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl)#set ttl
+        ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
         ICMP_socket.settimeout(timeout)
         packet_id = id
 
@@ -296,7 +297,7 @@ class Traceroute(NetworkApplication):
         
         ttl = 1
         id = 1
-        while ttl < 31:
+        while ttl < 31: #max num of hops is 30
             
             j = 0
             while j < 3:
@@ -306,19 +307,13 @@ class Traceroute(NetworkApplication):
                 j += 1
                 id += 1
 
-            print("")
+            print("-------------------------------------------------------------------------------------------")
         
             if prev_address != addr:
                 prev_address = addr
                 ttl +=1
             else:
                 break
-            
-
-
-
-
-
 
 
 class WebServer(NetworkApplication):

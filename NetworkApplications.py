@@ -183,7 +183,7 @@ class Traceroute(NetworkApplication):
     seq = 0
     ICMP_ECHO_REQUEST = 8  
     SendingTime = 0
-    Destination=999
+    Destination = 999
 
 
     def receiveOnePing(self, icmpSocket, destinationAddress, timeout):
@@ -196,21 +196,21 @@ class Traceroute(NetworkApplication):
             except socket.timeout:
                 break
 
-        # 2. Once received, record time of receipt, otherwise, handle a timeout
+            # 2. Once received, record time of receipt, otherwise, handle a timeout
             received_time = time.time()
 
-        # 3. Compare the time of receipt to time of sending, producing the total network delay
+            # 3. Compare the time of receipt to time of sending, producing the total network delay
             time_comp = received_time - self.SendingTime
             time_comp *= 1000
 
-        # 4. Unpack the packet header for useful information, including the ID
+            # 4. Unpack the packet header for useful information, including the ID
             icmp_header = recPacket[20:28]
             size = sys.getsizeof(recPacket) 
             
             type, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmp_header)
             
-        # 5. Check that the ID matches between the request and reply
-        # 6. Return total network delay
+            # 5. Check that the ID matches between the request and reply
+            # 6. Return total network delay
             if(type==11 and code==0):
                 
                 return(time_comp,addr,None,size)
@@ -226,8 +226,10 @@ class Traceroute(NetworkApplication):
         # 0. Create packet
         packet = self.packet(ID)
         self.IncreaseSequence()
+        
         # 1. Send packet using socket
         icmpSocket.sendto(packet,(destinationAddress,1))
+        
         # 2. Record time of sending
         self.SendingTime = time.time()
 
@@ -237,9 +239,11 @@ class Traceroute(NetworkApplication):
     def packet(self,ID):
         # 1. Build ICMP header
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.seq)
+        
         # 2. Checksum ICMP packet using given function
         checksum = super().checksum(header)
-        # 3. Insert checksum into packet by re-packing
+        
+        # 3. Insert checksum into packet by re-packing & return the packet
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
         return header
 

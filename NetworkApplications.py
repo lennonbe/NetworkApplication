@@ -211,7 +211,7 @@ class Traceroute(NetworkApplication):
 
             # 3. Compare the time of receipt to time of sending, producing the total network delay
             time_comp = received_time - self.SendingTime
-            time_comp = time_comp * 1000
+            time_comp = time_comp * 1000 #conversion to milliseconds
 
             # 4. Unpack the packet header for useful information, including the ID
             icmp_header = recPacket[20:28]
@@ -221,7 +221,7 @@ class Traceroute(NetworkApplication):
             
             # 5. Check that the ID matches between the request and reply
             # 6. Return total network delay
-            if(type==11 and code==0):
+            if(type==11 and code==0): #type of ICMP response for knowing what 
                 
                 return(time_comp,addr,None,size)
             elif(type==0 and code==0):
@@ -256,20 +256,21 @@ class Traceroute(NetworkApplication):
 
     def doOnePing(self, destinationAddress, timeout,ttl, ID):
         
+        # Option to choose UDP or ICMP for extra marks
         # 1. Create ICMP socket, setting the ttl and timeout
-        ICMP_socket = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
-        ICMP_socket.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
-        ICMP_socket.settimeout(timeout)
+        s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
+        s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
+        s.settimeout(timeout)
         packet_id = ID
 
         # 2. Call sendOnePing function
-        self.sendOnePing(ICMP_socket, destinationAddress, packet_id)
+        self.sendOnePing(s, destinationAddress, packet_id)
 
         # 2. Call receiveOnePing function
-        delay = self.receiveOnePing(ICMP_socket,destinationAddress,timeout)
+        delay = self.receiveOnePing(s,destinationAddress,timeout)
 
         # 3. Close the socket and return the delay
-        ICMP_socket.close()
+        s.close()
         return delay
 
     def getHostname(self,addr):
@@ -283,14 +284,17 @@ class Traceroute(NetworkApplication):
                  return None  
 
     def printResult(self,delay,addr,size,ttl):
-         if(delay==0 and addr==0):
-             print("Timeout")
-             return     
-         hostname = self.getHostname(addr)
-         if(hostname==None):
-             super().printOneResult(addr[0],size,delay,ttl,"unresolved host name")
-         else:
-             super().printOneResult(addr[0],size,delay,ttl,hostname[0])
+        
+        if(delay==0 and addr==0):
+            print("Timeout")
+            return     
+        
+        hostname = self.getHostname(addr)
+        
+        if(hostname==None):
+            super().printOneResult(addr[0],size,delay,ttl,"UNABLE TO RESOLVE HOST NAME")
+        else:
+            super().printOneResult(addr[0],size,delay,ttl,hostname[0])
                
     
     def __init__(self, args):
@@ -302,16 +306,20 @@ class Traceroute(NetworkApplication):
         prev_address = None
         
         ttl = 1
-        id = 1
+        ID = 1
         while ttl < 31: #max num of hops is 30
             
             j = 0
             while j < 3:
                     
-                delay,addr,info,size = self.doOnePing(address_ip,timeout,ttl, id)
-                self.printResult(delay,addr,size,ttl)
-                j += 1
-                id += 1
+                resp = self.doOnePing(address_ip,timeout,ttl, ID)
+                if resp:
+                    delay,addr,info,size = self.doOnePing(address_ip,timeout,ttl, ID)
+                    self.printResult(delay,addr,size,ttl)
+                    j += 1
+                    ID += 1
+                else:
+                    print("NO RESPONSE")
 
             print("-------------------------------------------------------------------------------------------")
         
@@ -324,22 +332,50 @@ class Traceroute(NetworkApplication):
 
 class WebServer(NetworkApplication):
 
-    def handleRequest(tcpSocket):
+    hostName = "localhost"
+    serverPort = 8080
+
+    def handleRequest(self, tcpSocket, address):
         # 1. Receive request message from the client on connection socket
+        receivedPacket = tcpSocket.recv(1024)
+        print(receivedPacket) #if 0-3 contains 
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+        filename = receivedPacket.decode("utf-8").split('\r\n')[0] 
+        sliced = filename[6:]
+        print('\n')
+        print(sliced)
         # 3. Read the corresponding file from disk
+        f = open(sliced, 'rb')
         # 4. Store in temporary buffer
+        outputdata = f.read()
         # 5. Send the correct HTTP response error
+        #tcpSocket.send("HTTP/1.1 200 OK\r\n\r\n")
         # 6. Send the content of the file to the socket
+        for i in range(0, len(outputdata)):
+            tcpSocket.send(outputdata[i])
+        tcpSocket.send("\r\n")
         # 7. Close the connection socket
+        tcpSocket.close()
         pass
 
     def __init__(self, args):
         print('Web Server starting on port: %i...' % (args.port))
         # 1. Create server socket
+        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s1.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
+        host = socket.gethostname()
         # 2. Bind the server socket to server address and server port
+        s1.bind((host,1025))
         # 3. Continuously listen for connections to server socket
-        # 4. When a connection is accepted, call handleRequest function, passing new connection socket (see https://docs.python.org/3/library/socket.html#socket.socket.accept)
+        s1.listen(1)
+        print(host)
+        
+        #boolean = True
+        while True:
+            newSocket, clientAddress = s1.accept()
+            #http://vdi-scc203-17:1025/
+            self.handleRequest(newSocket, clientAddress)
+        
         # 5. Close server socket
 
 

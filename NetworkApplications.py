@@ -392,10 +392,11 @@ class WebServer(NetworkApplication):
         
         while True:
             newSocket, clientAddress = s1.accept()
-            #http://vdi-scc203-17:1025/
+            #http://vdi-scc203-17:1025/index.html for testing
             self.handleRequest(newSocket, clientAddress)
         
         # 5. Close server socket
+        s1.close()
 
 
 class Proxy(NetworkApplication):

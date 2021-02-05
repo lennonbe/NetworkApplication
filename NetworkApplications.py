@@ -337,25 +337,52 @@ class WebServer(NetworkApplication):
 
     def handleRequest(self, tcpSocket, address):
         # 1. Receive request message from the client on connection socket
-        receivedPacket = tcpSocket.recv(1024)
-        print(receivedPacket) #if 0-3 contains 
+          
+        request = tcpSocket.recv(1024).decode('utf-8')
+        string_list = request.split('\n')[0].split(' / ')
+        
+        print(request)
+
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
-        filename = receivedPacket.decode("utf-8").split('\r\n')[0] 
-        sliced = filename[6:]
-        print('\n')
-        print(sliced)
-        # 3. Read the corresponding file from disk
-        f = open(sliced, 'rb')
-        # 4. Store in temporary buffer
-        outputdata = f.read()
-        # 5. Send the correct HTTP response error
-        #tcpSocket.send("HTTP/1.1 200 OK\r\n\r\n")
-        # 6. Send the content of the file to the socket
-        for i in range(0, len(outputdata)):
-            tcpSocket.send(outputdata[i])
-        tcpSocket.send("\r\n")
-        # 7. Close the connection socket
+
+        method = string_list[0] # First string is a method
+        requesting_file = string_list[1] #Second string is request file
+        
+        print('Client method ', method)
+        print('Client request ', requesting_file)
+        
         tcpSocket.close()
+        
+        #filename = receivedPacket.decode("utf-8").split('\r\n')[0] 
+        #sliced = filename[6:]
+
+        #print('\n')
+        #print(sliced)
+
+        # 3. Read the corresponding file from disk
+
+        f = open(requesting_file[0:8], 'rb')
+        print(f)
+
+        # 4. Store in temporary buffer
+
+        outputdata = f.read()
+        print(outputdata)
+        
+        # 5. Send the correct HTTP response error
+
+        #tcpSocket.send("HTTP/1.1 200 OK\r\n\r\n")
+        
+        # 6. Send the content of the file to the socket
+
+
+        #for i in range(0, len(outputdata)):
+        #    tcpSocket.send(outputdata[i])
+        #tcpSocket.send("\r\n")
+
+        # 7. Close the connection socket
+
+        #tcpSocket.close()
         pass
 
     def __init__(self, args):
@@ -370,7 +397,6 @@ class WebServer(NetworkApplication):
         s1.listen(1)
         print(host)
         
-        #boolean = True
         while True:
             newSocket, clientAddress = s1.accept()
             #http://vdi-scc203-17:1025/

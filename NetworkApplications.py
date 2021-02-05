@@ -338,51 +338,44 @@ class WebServer(NetworkApplication):
     def handleRequest(self, tcpSocket, address):
         # 1. Receive request message from the client on connection socket
           
-        request = tcpSocket.recv(1024).decode('utf-8')
-        string_list = request.split('\n')[0].split(' / ')
+        #request = tcpSocket.recv(1024).decode('utf-8')
+        #string_list = request.split('\n')[0].split(' / ')
+
+        request = tcpSocket.recv(1024)
+        message = request.decode('utf-8').split()
+        print(message[1])
+        #path = message[1].strip('/')
+        path = message[1][1:] #taking away that initial '/' character by slicing the string
+        print(path)
         
         print(request)
+        print('\n')
+        print(path)
 
-        # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+        try:
 
-        method = string_list[0] # First string is a method
-        requesting_file = string_list[1] #Second string is request file
-        
-        print('Client method ', method)
-        print('Client request ', requesting_file)
-        
-        tcpSocket.close()
-        
-        #filename = receivedPacket.decode("utf-8").split('\r\n')[0] 
-        #sliced = filename[6:]
+            f = open(path, 'r')
+            # 4. Store in temporary buffer
+            outputdata = f.read()
+            print(outputdata)
+            #f.close()
 
-        #print('\n')
-        #print(sliced)
+            header = 'HTTP/1.0 200 OK\n' #message which informs server the request was handled OK
+        except IOError:
 
-        # 3. Read the corresponding file from disk
+            # 5. Send the correct HTTP response error
+            print("Could not read file:", path)
+            header = 'HTTP/1.0 404 Not Found\n\n' #message informing of error, 404 file not found
+            outputdata = 'Error 404: File not found'
 
-        f = open(requesting_file[0:8], 'rb')
-        print(f)
-
-        # 4. Store in temporary buffer
-
-        outputdata = f.read()
-        print(outputdata)
-        
-        # 5. Send the correct HTTP response error
-
-        #tcpSocket.send("HTTP/1.1 200 OK\r\n\r\n")
-        
+        header += 'Content-Type: text/html\n\n'
         # 6. Send the content of the file to the socket
-
-
-        #for i in range(0, len(outputdata)):
-        #    tcpSocket.send(outputdata[i])
-        #tcpSocket.send("\r\n")
-
+        final_response = header.encode()
+        final_response += outputdata.encode()
+        tcpSocket.send(final_response)
         # 7. Close the connection socket
-
-        #tcpSocket.close()
+        tcpSocket.close()
+       
         pass
 
     def __init__(self, args):

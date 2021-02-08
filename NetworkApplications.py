@@ -260,7 +260,7 @@ class Traceroute(NetworkApplication):
         # Option to choose UDP or ICMP for extra marks
         # 1. Create ICMP socket, setting the ttl and timeout
         s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
-        s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
+        s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set TTL of socket
         s.settimeout(self.timeout)
         tempID = ID
 
@@ -317,7 +317,6 @@ class Traceroute(NetworkApplication):
             print("-------------------------------------------------------------------------------------------")
                     
             if addr[0] != addressIP:
-                #prevAddress = addr
                 ttl +=1
             else:
                 break
@@ -333,42 +332,35 @@ class WebServer(NetworkApplication):
 
     def handleRequest(self, tcpSocket, address):
         # 1. Receive request message from the client on connection socket
-          
-        #request = tcpSocket.recv(1024).decode('utf-8')
-        #string_list = request.split('\n')[0].split(' / ')
-
         request = tcpSocket.recv(1024)
         message = request.decode('utf-8').split()
-        print(message[1])
-        #path = message[1].strip('/')
+        #print(message[1])
         path = message[1][1:] #taking away that initial '/' character by slicing the string
-        print(path)
-        
-        print(request)
-        print('\n')
-        print(path)
+        #print(path)
 
         try:
 
+            # 3. Opening the file
             f = open(path, 'r')
+
             # 4. Store in temporary buffer
             outputdata = f.read()
-            print(outputdata)
-            #f.close()
+            #print(outputdata)
 
             header = 'HTTP/1.0 200 OK\n' #message which informs server the request was handled OK
         except IOError:
 
             # 5. Send the correct HTTP response error
             print("Could not read file:", path)
-            header = 'HTTP/1.0 404 Not Found\n\n' #message informing of error, 404 file not found
             outputdata = 'Error 404: File not found'
+            header = 'HTTP/1.0 404 Not Found\n\n' #message informing of error, 404 file not found
 
         header += 'Content-Type: text/html\n\n'
         # 6. Send the content of the file to the socket
-        final_response = header.encode()
-        final_response += outputdata.encode()
-        tcpSocket.send(final_response)
+        finalOutput = header.encode()
+        finalOutput += outputdata.encode()
+        tcpSocket.send(finalOutput)
+        print(header)
         # 7. Close the connection socket
         tcpSocket.close()
        
@@ -376,12 +368,15 @@ class WebServer(NetworkApplication):
 
     def __init__(self, args):
         print('Web Server starting on port: %i...' % (args.port))
+        
         # 1. Create server socket
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         s1.setsockopt(socket.SOL_SOCKET,socket.SO_REUSEADDR, 1)
         host = socket.gethostname()
+
         # 2. Bind the server socket to server address and server port
         s1.bind((host,1025))
+
         # 3. Continuously listen for connections to server socket
         s1.listen(1)
         print(host)

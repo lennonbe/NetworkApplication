@@ -93,7 +93,7 @@ class ICMPPing(NetworkApplication):
 
     sendTime = 0
     arrivalTime = 0
-    seq = 0
+    sequence = 1
     ICMP_ECHO_REQUEST = 8
     Destination = 999
 
@@ -101,7 +101,7 @@ class ICMPPing(NetworkApplication):
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 0. Create packet
         packet = self.packet(ID)
-        self.seq += 1
+        #self.sequence += 1
         
         # 1. Send packet using socket
         icmpSocket.sendto(packet,(destinationAddress,1))
@@ -111,13 +111,13 @@ class ICMPPing(NetworkApplication):
 
     def packet(self,ID):
         # 1. Build ICMP header
-        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.seq)
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.sequence)
         
         # 2. Checksum ICMP packet using given function
         checksum = super().checksum(header)
         
         # 3. Insert checksum into packet by re-packing & return the packet
-        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.sequence)
         return header
 
     def receiveOnePing(self, icmpSocket, destinationAddress, timeout, ID):
@@ -135,21 +135,21 @@ class ICMPPing(NetworkApplication):
             received_time = time.time()
 
             # 3. Compare the time of receipt to time of sending, producing the total network delay
-            time_comp = received_time - self.sendTime
-            time_comp *= 1000
+            timeComp = received_time - self.sendTime
+            timeComp *= 1000
 
             # 4. Unpack the packet header for useful information, including the ID
             icmp_header = recPacket[20:28]
             size = sys.getsizeof(recPacket) 
             ttl = recPacket[8]
             
-            type, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmp_header)
+            type, code, checksum, packetID, sequence = struct.unpack('bbHHh', icmp_header)
             
             # 5. Check that the ID matches between the request and reply
             # 6. Return total network delay
-            if(p_id==ID):
+            if(packetID == ID):
                 
-                return (time_comp,addr,self.Destination,size, ttl)
+                return (timeComp,addr,self.Destination,size, ttl)
             else:
                 
                 return (0, 0, 0, 0, 0)
@@ -189,11 +189,13 @@ class ICMPPing(NetworkApplication):
 
 class Traceroute(NetworkApplication):
 
-    seq = 0
+    sequence = 1
     ICMP_ECHO_REQUEST = 8  
     SendingTime = 0
     ReceiveTime = 0
+    TimeComparisonVal = 0
     Destination = 999
+    timeout = 0
 
 
     def receiveOnePing(self, icmpSocket, destinationAddress, timeout):
@@ -207,35 +209,34 @@ class Traceroute(NetworkApplication):
                 break
 
             # 2. Once received, record time of receipt, otherwise, handle a timeout
-            received_time = time.time()
+            self.ReceiveTime = time.time()
 
             # 3. Compare the time of receipt to time of sending, producing the total network delay
-            time_comp = received_time - self.SendingTime
-            time_comp = time_comp * 1000 #conversion to milliseconds
+            self.TimeComparisonVal = (self.ReceiveTime - self.SendingTime)*1000
 
             # 4. Unpack the packet header for useful information, including the ID
-            icmp_header = recPacket[20:28]
+            header = recPacket[20:28]
             size = sys.getsizeof(recPacket) 
             
-            type, code, checksum, p_id, sequence = struct.unpack('bbHHh', icmp_header)
+            type, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
             
             # 5. Check that the ID matches between the request and reply
             # 6. Return total network delay
-            if(type==11 and code==0): #type of ICMP response for knowing what 
+            if(type==11 and code==0): #type of ICMP response 
                 
-                return(time_comp,addr,None,size)
+                return(self.TimeComparisonVal,addr,None,size)
             elif(type==0 and code==0):
                 
-                return(time_comp,addr,self.Destination,size)
-    
-            return (0, 0, 0, 0)
+                return(self.TimeComparisonVal,addr,self.Destination,size)
+            else:
+
+                return (0, 0, 0, 0)
 
 
 
     def sendOnePing(self, icmpSocket, destinationAddress, ID):
         # 0. Create packet
         packet = self.packet(ID)
-        self.seq += 1
         
         # 1. Send packet using socket
         icmpSocket.sendto(packet,(destinationAddress,1))
@@ -243,15 +244,15 @@ class Traceroute(NetworkApplication):
         # 2. Record time of sending
         self.SendingTime = time.time()
 
-    def packet(self,ID):
+    def packet(self,ID): #constructor for packet
         # 1. Build ICMP header
-        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.seq)
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.sequence)
         
         # 2. Checksum ICMP packet using given function
         checksum = super().checksum(header)
         
         # 3. Insert checksum into packet by re-packing & return the packet
-        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.seq)
+        header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.sequence)
         return header
 
     def doOnePing(self, destinationAddress, timeout,ttl, ID):
@@ -260,50 +261,42 @@ class Traceroute(NetworkApplication):
         # 1. Create ICMP socket, setting the ttl and timeout
         s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
         s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set ttl
-        s.settimeout(timeout)
-        packet_id = ID
+        s.settimeout(self.timeout)
+        tempID = ID
 
         # 2. Call sendOnePing function
-        self.sendOnePing(s, destinationAddress, packet_id)
+        self.sendOnePing(s, destinationAddress, tempID)
 
         # 2. Call receiveOnePing function
-        delay = self.receiveOnePing(s,destinationAddress,timeout)
+        delay = self.receiveOnePing(s,destinationAddress,self.timeout)
 
         # 3. Close the socket and return the delay
         s.close()
         return delay
 
-    def getHostname(self,addr):
-        if(addr==None):
-            return None
-        else:
-             try:
-                 host=socket.gethostbyaddr(addr[0])   
-                 return host     
-             except:
-                 return None  
-
     def printResult(self,delay,addr,size,ttl):
         
-        if(delay==0 and addr==0):
+        if(delay == 0 and addr == 0):
+            
             print("Timeout")
             return     
-        
-        hostname = self.getHostname(addr)
-        
-        if(hostname==None):
-            super().printOneResult(addr[0],size,delay,ttl,"UNABLE TO RESOLVE HOST NAME")
-        else:
+
+        try:
+            hostname = socket.gethostbyaddr(addr[0]) 
             super().printOneResult(addr[0],size,delay,ttl,hostname[0])
+        except:
+            hostname = None
+            super().printOneResult(addr[0],size,delay,ttl,"UNABLE TO RESOLVE HOST NAME")
+        
                
     
     def __init__(self, args):
         
         print('Traceroute to: %s...' % (args.hostname))
-        
-        timeout = 10
-        address_ip = socket.gethostbyname(args.hostname)
-        prev_address = None
+        self.timeout = int(input('Enter desired timeout:'))
+
+        addressIP = socket.gethostbyname(args.hostname)
+        prevAddress = None
         
         ttl = 1
         ID = 1
@@ -312,9 +305,9 @@ class Traceroute(NetworkApplication):
             j = 0
             while j < 3:
                     
-                resp = self.doOnePing(address_ip,timeout,ttl, ID)
+                resp = self.doOnePing(addressIP,self.timeout,ttl, ID)
                 if resp:
-                    delay,addr,info,size = self.doOnePing(address_ip,timeout,ttl, ID)
+                    delay,addr,info,size = self.doOnePing(addressIP,self.timeout,ttl, ID)
                     self.printResult(delay,addr,size,ttl)
                     j += 1
                     ID += 1
@@ -322,12 +315,15 @@ class Traceroute(NetworkApplication):
                     print("NO RESPONSE")
 
             print("-------------------------------------------------------------------------------------------")
-        
-            if prev_address != addr:
-                prev_address = addr
+                    
+            if addr[0] != addressIP:
+                #prevAddress = addr
                 ttl +=1
             else:
                 break
+        
+        print(addressIP)
+        print(addr[0])
 
 
 class WebServer(NetworkApplication):

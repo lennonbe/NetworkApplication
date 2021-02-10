@@ -368,6 +368,7 @@ class WebServer(NetworkApplication):
 
     def __init__(self, args):
         print('Web Server starting on port: %i...' % (args.port))
+        self.serverPort = args.port
         
         # 1. Create server socket
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -375,7 +376,8 @@ class WebServer(NetworkApplication):
         host = socket.gethostname()
 
         # 2. Bind the server socket to server address and server port
-        s1.bind((host,1025))
+        #s1.bind((host,1025))
+        s1.bind((host, self.serverPort))
 
         # 3. Continuously listen for connections to server socket
         s1.listen(1)
@@ -394,6 +396,75 @@ class Proxy(NetworkApplication):
 
     def __init__(self, args):
         print('Web Proxy starting on port: %i...' % (args.port))
+        self.serverPort = args.port
+
+        self.start()
+
+    def start(self):
+        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        host = socket.gethostname()
+        s1.bind((host, self.serverPort))
+        s1.listen(1)
+        print("Socket has been initialized")
+        print(host)
+
+        while 1:
+            try:
+                conn, addr = s1.accept()
+                data = conn.recv(1024)
+                self.connect(conn, data, addr)
+            except KeyboardInterrupt:
+                s1.close()
+                print('Action terminated by Ctrl+C')
+
+        s1.close()
+
+    def connect(self, conn, data, addr):
+        firstTrim = data.decode().split('/n')[0]
+
+        url = firstTrim.split(' ')[1]
+
+        httpPos = url.find("://")
+        if(httpPos == -1):
+            temp = url
+        else:
+            temp = url[(httpPos + 3):]
+
+        portPos = temp.find(":")
+
+        webserverPos = temp.find("/")
+        if webserverPos == -1:
+            webserverPos = len(temp)
+        webserver = ""
+        port = -1
+        if(portPos == -1 or webserverPos < portPos):
+            port = 80
+            webserver = temp[:webserverPos]
+        else:
+            port = int((temp[(portPos+1):])[:webserverPos - portPos - 1])
+            webserver = temp[:portPos]
+        
+        self.proxy(webserver, port, conn, addr, data)
+
+    def proxy(self, webserver, port, conn, addr, data):
+        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s1.connect((webserver, port))
+        s1.send(data)
+
+        while 1:
+            reply = s1.recv(1024)
+
+            if(len(reply) > 0):
+                conn.send(reply)
+                dar = float(len(reply))/1024
+                dar = "%.3s" % (str(dar))
+                dar = "%s KB" % (dar)
+                print("REQUEST DONE: %s" % str(addr[0]))
+            else:
+                break
+        
+        s1.close()
+        conn.close()
 
 
 if __name__ == "__main__":

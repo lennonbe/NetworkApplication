@@ -394,26 +394,31 @@ class WebServer(NetworkApplication):
 
 class Proxy(NetworkApplication):
 
+    serverPort = 0
     def __init__(self, args):
         print('Web Proxy starting on port: %i...' % (args.port))
+        
         self.serverPort = args.port
-
         self.start()
 
     def start(self):
+        
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = socket.gethostname()
         s1.bind((host, self.serverPort))
-        s1.listen(1)
         print("Socket has been initialized")
         print(host)
 
+        print(self.serverPort)
         while 1:
+            
+            s1.listen(1)
             try:
                 conn, addr = s1.accept()
                 data = conn.recv(1024)
                 self.connect(conn, data, addr)
             except KeyboardInterrupt:
+                
                 s1.close()
                 print('Action terminated by Ctrl+C')
 
@@ -421,11 +426,10 @@ class Proxy(NetworkApplication):
 
     def connect(self, conn, data, addr):
         print(data)
-        print('\n')
-        firstTrim = data.decode().split('/n')[0]
+        firstTrim = data.decode('utf-8', "ignore" ).split('\n')[0]
         print(firstTrim)
-        print('\n')
         url = firstTrim.split(' ')[1]
+        #url = url1[1:]
         print(url)
 
         httpPos = url.find("://")
@@ -442,6 +446,7 @@ class Proxy(NetworkApplication):
         webserver = ""
         port = -1
         if(portPos == -1 or webserverPos < portPos):
+            #port = self.serverPort
             port = 80
             webserver = temp[:webserverPos]
         else:
@@ -449,25 +454,31 @@ class Proxy(NetworkApplication):
             webserver = temp[:portPos]
         
         print(webserver)
-        print("123")
+        print("hi")
         self.proxy(webserver, port, conn, addr, data)
 
     def proxy(self, webserver, port, conn, addr, data):
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        print("1")
         s1.connect((webserver, port))
+        #s1.connect(webserver)
+        print("2")
         s1.send(data)
+        print("3")
 
-        while 1:
+        boolean = True
+        while boolean:
+
             reply = s1.recv(1024)
-
             if(len(reply) > 0):
                 conn.send(reply)
                 print("REQUEST DONE: %s" % str(addr[0]))
+                boolean = False
             else:
+                s1.close()
+                conn.close()
                 break
         
-        s1.close()
-        conn.close()
 
 
 if __name__ == "__main__":

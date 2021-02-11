@@ -420,9 +420,13 @@ class Proxy(NetworkApplication):
         s1.close()
 
     def connect(self, conn, data, addr):
+        print(data)
+        print('\n')
         firstTrim = data.decode().split('/n')[0]
-
+        print(firstTrim)
+        print('\n')
         url = firstTrim.split(' ')[1]
+        print(url)
 
         httpPos = url.find("://")
         if(httpPos == -1):
@@ -444,6 +448,8 @@ class Proxy(NetworkApplication):
             port = int((temp[(portPos+1):])[:webserverPos - portPos - 1])
             webserver = temp[:portPos]
         
+        print(webserver)
+        print("123")
         self.proxy(webserver, port, conn, addr, data)
 
     def proxy(self, webserver, port, conn, addr, data):
@@ -456,9 +462,6 @@ class Proxy(NetworkApplication):
 
             if(len(reply) > 0):
                 conn.send(reply)
-                dar = float(len(reply))/1024
-                dar = "%.3s" % (str(dar))
-                dar = "%s KB" % (dar)
                 print("REQUEST DONE: %s" % str(addr[0]))
             else:
                 break

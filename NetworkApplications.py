@@ -403,13 +403,16 @@ class Proxy(NetworkApplication):
 
     def start(self):
         
+        #Start function. Simply creates the first connection sockets binding it to a host and a port, due to it being a proxy it is better to do this.
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = socket.gethostname()
         s1.bind((host, self.serverPort))
         print("Socket has been initialized")
+        
         print(host)
-
         print(self.serverPort)
+
+        #Following loop allows the socket to listen for requests and call the function connect, which handles said requests, if any are to arise.
         while 1:
             
             s1.listen(1)
@@ -425,24 +428,31 @@ class Proxy(NetworkApplication):
         s1.close()
 
     def connect(self, conn, data, addr):
+        
+        #Printing the data whilst decoding to ensure it gets trimmed properly
         print(data)
         firstTrim = data.decode('utf-8', "ignore" ).split('\n')[0]
         print(firstTrim)
         url = firstTrim.split(' ')[1]
-        #url = url1[1:]
         print(url)
 
+        #The following use of the find() function allows us to find the position of things such as the portPosition
+        #This then allows us to trim the inserted website from http:// form to normal form, removing the http:// part
         httpPos = url.find("://")
         if(httpPos == -1):
             temp = url
         else:
             temp = url[(httpPos + 3):]
 
+        #If "/" is not found in temp, webserverPos is set as length of temp, ensuring nothing gets trimmed off when we trim the string later on in the code.
         portPos = temp.find(":")
-
         webserverPos = temp.find("/")
         if webserverPos == -1:
-            webserverPos = len(temp)
+            webserverPos = len(temp) 
+
+
+        #Using the previously collected webserverPos variable we can trim the string to retain information only regarding to what is before the webserver values
+        #If the portPos is found the trimming is more complicated, with a need to maintain everything between the port position and the webServer position
         webserver = ""
         port = -1
         if(portPos == -1 or webserverPos < portPos):
@@ -453,23 +463,27 @@ class Proxy(NetworkApplication):
             port = int((temp[(portPos+1):])[:webserverPos - portPos - 1])
             webserver = temp[:portPos]
         
+
         print(webserver)
-        print("hi")
         self.proxy(webserver, port, conn, addr, data)
 
     def proxy(self, webserver, port, conn, addr, data):
+        
+        #Creates the proxy socket
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        
+        #Connects and sends the request
         print("1")
         s1.connect((webserver, port))
-        #s1.connect(webserver)
         print("2")
         s1.send(data)
         print("3")
 
+        #Receives the data and sends to the connection, informing that the request is done
         boolean = True
         while boolean:
 
-            reply = s1.recv(1024)
+            reply = s1.recv(1024) #Sometimes all the information of a website will not be displayed in curl due to the size of the data received
             if(len(reply) > 0):
                 conn.send(reply)
                 print("REQUEST DONE: %s" % str(addr[0]))

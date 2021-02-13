@@ -271,11 +271,11 @@ class Traceroute(NetworkApplication):
         self.sendOnePing(s, destinationAddress, tempID)
 
         # 2. Call receiveOnePing function
-        delay = self.receiveOnePing(s,destinationAddress,self.timeout)
+        returnVal = self.receiveOnePing(s,destinationAddress,self.timeout)
 
         # 3. Close the socket and return the delay
         s.close()
-        return delay
+        return returnVal
 
     def printResult(self,delay,addr,size,ttl):
         
@@ -318,7 +318,7 @@ class Traceroute(NetworkApplication):
                     
                 resp = self.doOnePing(addressIP,self.timeout,ttl, ID)
                 if resp:
-                    delay,addr,info,size = self.doOnePing(addressIP,self.timeout,ttl, ID)
+                    delay,addr,info,size = resp #self.doOnePing(addressIP,self.timeout,ttl, ID)
 
                     if lowestTime == 0 and highestTime == 0:
                         lowestTime = delay

@@ -194,6 +194,7 @@ class Traceroute(NetworkApplication):
     SendingTime = 0
     ReceiveTime = 0
     TimeComparisonVal = 0
+    receivedPacketNum = 0
     Destination = 999
     timeout = 0
 
@@ -205,6 +206,7 @@ class Traceroute(NetworkApplication):
             
             try:
                 recPacket, addr = icmpSocket.recvfrom(1024)
+                self.receivedPacketNum += 1
             except socket.timeout:
                 break
 
@@ -216,7 +218,7 @@ class Traceroute(NetworkApplication):
 
             # 4. Unpack the packet header for useful information, including the ID
             header = recPacket[20:28]
-            size = sys.getsizeof(recPacket) 
+            size = sys.getsizeof(recPacket) - 19
             
             type, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
             
@@ -230,6 +232,7 @@ class Traceroute(NetworkApplication):
                 return(self.TimeComparisonVal,addr,self.Destination,size)
             else:
 
+                #Ensuring we always return something
                 return (0, 0, 0, 0)
 
 
@@ -283,10 +286,12 @@ class Traceroute(NetworkApplication):
 
         try:
             hostname = socket.gethostbyaddr(addr[0]) 
-            super().printOneResult(addr[0],size,delay,ttl,hostname[0])
+            self.printOneResult(addr[0],size,delay,ttl,hostname[0])
         except:
             hostname = None
-            super().printOneResult(addr[0],size,delay,ttl,"UNABLE TO RESOLVE HOST NAME")
+            #super().printOneResult(addr[0],size,delay,ttl,"UNABLE TO RESOLVE HOST NAME")
+            self.printOneResult(addr[0],size,delay,ttl,addr[0])
+
         
                
     
@@ -302,6 +307,7 @@ class Traceroute(NetworkApplication):
         ID = 1
         while ttl < 31: #max num of hops is 30
             
+            self.receivedPacketNum = 0
             lowestTime = 0
             highestTime = 0
             avgTime = 0
@@ -333,8 +339,9 @@ class Traceroute(NetworkApplication):
                     print("NO RESPONSE")
 
             avgTime = sumTime/3
-            self.printAdditionalDetails(0.0, lowestTime, avgTime, highestTime)
-            
+            packLoss = (self.receivedPacketNum / (ttl * 3)) * 100
+            self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
+
             print("-------------------------------------------------------------------------------------------")
                     
             if addr[0] != addressIP:

@@ -252,7 +252,7 @@ class Traceroute(NetworkApplication):
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, 0, ID, self.sequence)
         
         # 2. Checksum ICMP packet using given function
-        checksum = super().checksum(header)
+        checksum = self.checksum(header)
         
         # 3. Insert checksum into packet by re-packing & return the packet
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.sequence)

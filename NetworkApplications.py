@@ -302,18 +302,39 @@ class Traceroute(NetworkApplication):
         ID = 1
         while ttl < 31: #max num of hops is 30
             
+            lowestTime = 0
+            highestTime = 0
+            avgTime = 0
+            sumTime = 0
+
             j = 0
             while j < 3:
                     
                 resp = self.doOnePing(addressIP,self.timeout,ttl, ID)
                 if resp:
                     delay,addr,info,size = self.doOnePing(addressIP,self.timeout,ttl, ID)
+
+                    if lowestTime == 0 and highestTime == 0:
+                        lowestTime = delay
+                        highestTime = delay
+                    elif lowestTime != 0 and highestTime != 0:
+                        
+                        if delay < lowestTime:
+                            lowestTime = delay
+                        elif delay > highestTime:
+                            highestTime = delay
+                        
+                    sumTime += delay
+
                     self.printResult(delay,addr,size,ttl)
                     j += 1
                     ID += 1
                 else:
                     print("NO RESPONSE")
 
+            avgTime = sumTime/3
+            self.printAdditionalDetails(0.0, lowestTime, avgTime, highestTime)
+            
             print("-------------------------------------------------------------------------------------------")
                     
             if addr[0] != addressIP:

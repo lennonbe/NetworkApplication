@@ -427,11 +427,8 @@ class Proxy(NetworkApplication):
         print('Web Proxy starting on port: %i...' % (args.port))
         
         self.serverPort = args.port
-        self.start()
-
-    def start(self):
-        
-        #Start function. Simply creates the first connection sockets binding it to a host and a port, due to it being a proxy it is better to do this.
+  
+        #Creates the first connection sockets binding it to a host and a port, due to it being a proxy it is better to do this.
         s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         host = socket.gethostname()
         s1.bind((host, self.serverPort))
@@ -446,8 +443,9 @@ class Proxy(NetworkApplication):
             s1.listen(1)
             try:
                 conn, addr = s1.accept()
-                data = conn.recv(1024)
-                self.connect(conn, data, addr)
+                data = conn.recv(4096)
+                #self.connect(conn, data, addr, s1)
+                self.requestHandler(conn, data)
             except KeyboardInterrupt:
                 
                 s1.close()
@@ -455,57 +453,66 @@ class Proxy(NetworkApplication):
 
         s1.close()
 
-    def connect(self, conn, data, addr):
+    def requestHandler(self, tcpSocket, rawData):
         
+        # 1. Receive request message from the client on connection socket
+        
+        # 2. Extract the path of the requested object from the message (second part of the HTTP header)
         #Printing the data whilst decoding to ensure it gets trimmed properly
-        print(data)
-        firstTrim = data.decode('utf-8', "ignore" ).split('\n')[0]
+        print(rawData)
+
+        #firstTrim = data.decode('utf-8', "ignore" ).split('\n')[0]
+        firstTrim = rawData.decode('utf-8').split('\n')[0]
         print(firstTrim)
         url = firstTrim.split(' ')[1]
         print(url)
-
-        #The following use of the find() function allows us to find the position of things such as the portPosition
-        #This then allows us to trim the inserted website from http:// form to normal form, removing the http:// part
-        httpPos = url.find("://")
-        if(httpPos == -1):
-            temp = url
-        else:
-            temp = url[(httpPos + 3):]
-
-        #If "/" is not found in temp, webserverPos is set as length of temp, ensuring nothing gets trimmed off when we trim the string later on in the code.
-        portPos = temp.find(":")
-        webserverPos = temp.find("/")
-        if webserverPos == -1:
-            webserverPos = len(temp) 
-
-
-        #Using the previously collected webserverPos variable we can trim the string to retain information only regarding to what is before the webserver values
-        #If the portPos is found the trimming is more complicated, with a need to maintain everything between the port position and the webServer position
-        webserver = ""
-        port = -1
-        if(portPos == -1 or webserverPos < portPos):
-            #port = self.serverPort
-            port = 80
-            webserver = temp[:webserverPos]
-        else:
-            port = int((temp[(portPos+1):])[:webserverPos - portPos - 1])
-            webserver = temp[:portPos]
         
+        #Removing the initial "http://" and the terminating "/" by use of find and trimming
+        httpPos = url.find("://") + 3
+        url = url[httpPos:-1]
 
-        print(webserver)
-        self.proxy(webserver, port, conn, addr, data)
+        #Assigning a port
+        port = 80
 
-    def proxy(self, webserver, port, conn, addr, data):
+        #Printing out the address for debugging
+        print(url)
+
+        proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        try:
+            proxySocket.connect((url, 80))
+            proxySocket.sendall(rawData)
+            data  = proxySocket.recv(4096)
+            
+            # 5. Send the correct HTTP response error
+            tcpSocket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
+
+            # 6. Send the content of the file to the socket
+            tcpSocket.send(data)
+            proxySocket.close()
+
+        except Exception:
+            print("Exception occured")
+            tcpSocket.close()
+            proxySocket.close()
+
+
+    def proxy(self, webserver, port, conn, addr, data, socket):
         
         #Creates the proxy socket
-        s1 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         
         #Connects and sends the request
         print("1")
-        s1.connect((webserver, port))
+        s2.connect((webserver, port))
         print("2")
-        s1.send(data)
+        s2.sendall(data)
         print("3")
+        finalData = s2.recv(1024)
+        print("4")
+        socket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
+        socket.send(data)
+
+
 
         #Receives the data and sends to the connection, informing that the request is done
         boolean = True

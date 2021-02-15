@@ -423,6 +423,9 @@ class WebServer(NetworkApplication):
 class Proxy(NetworkApplication):
 
     serverPort = 0
+    cache = []
+    urls = []
+
     def __init__(self, args):
         print('Web Proxy starting on port: %i...' % (args.port))
         
@@ -445,7 +448,7 @@ class Proxy(NetworkApplication):
                 conn, addr = s1.accept()
                 data = conn.recv(4096)
                 #self.connect(conn, data, addr, s1)
-                self.requestHandler(conn, data)
+                self.requestHandler(conn, data, addr)
             except KeyboardInterrupt:
                 
                 s1.close()
@@ -453,19 +456,23 @@ class Proxy(NetworkApplication):
 
         s1.close()
 
-    def requestHandler(self, tcpSocket, rawData):
+    def requestHandler(self, tcpSocket, rawData, addr):
         
         # 1. Receive request message from the client on connection socket
         
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
+        
         #Printing the data whilst decoding to ensure it gets trimmed properly
-        print(rawData)
 
-        #firstTrim = data.decode('utf-8', "ignore" ).split('\n')[0]
+        #print(rawData)
+
         firstTrim = rawData.decode('utf-8').split('\n')[0]
-        print(firstTrim)
+
+        #print(firstTrim)
+
         url = firstTrim.split(' ')[1]
-        print(url)
+
+        #print(url)
         
         #Removing the initial "http://" and the terminating "/" by use of find and trimming
         httpPos = url.find("://") + 3
@@ -477,24 +484,55 @@ class Proxy(NetworkApplication):
         #Printing out the address for debugging
         print(url)
 
-        proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        try:
-            proxySocket.connect((url, 80))
-            proxySocket.sendall(rawData)
-            data  = proxySocket.recv(4096)
+        if url in self.urls:
             
-            # 5. Send the correct HTTP response error
+            print("Addr is in cache")
+            tempIndex = self.urls.index(url)
+
             tcpSocket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
+            tcpSocket.send(self.cache[tempIndex])
 
-            # 6. Send the content of the file to the socket
-            tcpSocket.send(data)
-            proxySocket.close()
+            data = self.cache[tempIndex]
 
-        except Exception:
-            print("Exception occured")
-            tcpSocket.close()
-            proxySocket.close()
+            if(len(data) > 0):
+                print("REQUEST DONE: %s\n" % str(addr[0]))
+            else:
+                print("REQUEST NOT DONE\n")
 
+        else:
+
+            print("Addr is not in cache")
+            proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            try:
+                proxySocket.connect((url, 80))
+                proxySocket.sendall(rawData)
+                data  = proxySocket.recv(9999)
+                
+                # 5. Send the correct HTTP response error
+                tcpSocket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
+
+                # 6. Send the content of the file to the socket
+                tcpSocket.send(data)
+                proxySocket.close()
+
+                #tempPos = data.decode('utf-8').find("\r\n\r\n")
+                #data = data[tempPos+4:]
+
+                #print(data)
+
+                if(len(data) > 0):
+
+                    print("REQUEST DONE: %s\n" % str(addr[0]))
+                else:
+                    print("REQUEST NOT DONE\n")
+
+            except Exception as e:
+                print(e)
+                tcpSocket.close()
+                proxySocket.close()
+
+            self.urls.append(url)
+            self.cache.append(data)
 
     def proxy(self, webserver, port, conn, addr, data, socket):
         
@@ -513,20 +551,11 @@ class Proxy(NetworkApplication):
         socket.send(data)
 
 
-
         #Receives the data and sends to the connection, informing that the request is done
-        boolean = True
-        while boolean:
+        #boolean = True
+        #while boolean:
 
-            reply = s1.recv(1024) #Sometimes all the information of a website will not be displayed in curl due to the size of the data received
-            if(len(reply) > 0):
-                conn.send(reply)
-                print("REQUEST DONE: %s" % str(addr[0]))
-                boolean = False
-            else:
-                s1.close()
-                conn.close()
-                break
+        #    reply = s2.recv(1024) #Sometimes all the information of a website will not be displayed in curl due to the size of the data received
         
 
 

@@ -446,6 +446,7 @@ class Proxy(NetworkApplication):
             s1.listen(1)
             try:
                 conn, addr = s1.accept()
+                # 1. Receive request message from the client on connection socket
                 data = conn.recv(4096)
                 #self.connect(conn, data, addr, s1)
                 self.requestHandler(conn, data, addr)
@@ -458,10 +459,9 @@ class Proxy(NetworkApplication):
 
     def requestHandler(self, tcpSocket, rawData, addr):
         
-        # 1. Receive request message from the client on connection socket
         
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
-        
+
         #Printing the data whilst decoding to ensure it gets trimmed properly
 
         #print(rawData)

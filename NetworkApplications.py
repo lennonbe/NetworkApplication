@@ -195,6 +195,7 @@ class Traceroute(NetworkApplication):
     ReceiveTime = 0
     TimeComparisonVal = 0
     receivedPacketNum = 0
+    expectedPacketNum = 0
     Destination = 999
     timeout = 0
 
@@ -206,7 +207,7 @@ class Traceroute(NetworkApplication):
             
             try:
                 recPacket, addr = icmpSocket.recvfrom(1024)
-                self.receivedPacketNum += 1
+
             except socket.timeout:
                 break
 
@@ -226,9 +227,11 @@ class Traceroute(NetworkApplication):
             # 6. Return total network delay
             if(type==11 and code==0): #type of ICMP response 
                 
+                self.receivedPacketNum += 1
                 return(self.TimeComparisonVal,addr,None,size)
             elif(type==0 and code==0):
                 
+                self.receivedPacketNum += 1
                 return(self.TimeComparisonVal,addr,self.Destination,size)
             else:
 
@@ -245,6 +248,7 @@ class Traceroute(NetworkApplication):
         icmpSocket.sendto(packet,(destinationAddress,1))
         
         # 2. Record time of sending
+        #self.expectedPacketNum += 1
         self.SendingTime = time.time()
 
     def packet(self,ID): #constructor for packet
@@ -256,6 +260,8 @@ class Traceroute(NetworkApplication):
         
         # 3. Insert checksum into packet by re-packing & return the packet
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.sequence)
+
+        self.expectedPacketNum += 1
         return header
 
     def doOnePing(self, destinationAddress, timeout,ttl, ID):
@@ -298,20 +304,22 @@ class Traceroute(NetworkApplication):
     def __init__(self, args):
         
         print('Traceroute to: %s...' % (args.hostname))
-        self.timeout = int(input('Enter desired timeout:'))
+        self.timeout = float(input('Enter desired timeout:'))
 
         addressIP = socket.gethostbyname(args.hostname)
         prevAddress = None
         
         ttl = 1
         ID = 1
+        self.receivedPacketNum = 0
+        self.expectedPacketNum = 0
+        lowestTime = 0
+        highestTime = 0
+        avgTime = 0
+        sumTime = 0
+
         while ttl < 31: #max num of hops is 30
             
-            self.receivedPacketNum = 0
-            lowestTime = 0
-            highestTime = 0
-            avgTime = 0
-            sumTime = 0
 
             j = 0
             while j < 3:
@@ -333,21 +341,27 @@ class Traceroute(NetworkApplication):
                     sumTime += delay
 
                     self.printResult(delay,addr,size,ttl)
-                    j += 1
-                    ID += 1
+                    #j += 1
+                    #ID += 1
                 else:
-                    print("NO RESPONSE")
+                    print("TIMEOUT - PACKET LOST")
 
-            avgTime = sumTime/3
-            packLoss = (self.receivedPacketNum / (ttl * 3)) * 100
-            self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
+                j += 1
+                ID += 1
+
 
             print("-------------------------------------------------------------------------------------------")
                     
             if addr[0] != addressIP:
                 ttl +=1
             else:
+                temp = ttl
                 break
+        
+        
+        avgTime = sumTime/(temp*3)
+        packLoss = 100 - ((self.receivedPacketNum / self.expectedPacketNum) * 100)
+        self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
         
         print(addressIP)
         print(addr[0])

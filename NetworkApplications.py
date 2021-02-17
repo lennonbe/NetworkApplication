@@ -250,27 +250,33 @@ class Traceroute(NetworkApplication):
 
 
     def sendOnePing(self, socket, destinationAddress, ID):
+        
         # 0. Create packet
         packet = self.packet(ID)
             
-        # 0.1 Attempt to flush out any existing data before closing
-        try:
-            recv, recv2 = socket.recvfrom(1024)
-            #print(recv)
-            #print(recv2)
-        except Exception as e:
+        # 0.1. Attempt to flush out any existing data before closing (only done if a timeout is low)
+        if(self.timeout < 0.5):
+            
+            try:
+                recv, recv2 = socket.recvfrom(1024)
+                #print(recv)
+                #print(recv2)
+            except Exception as e:
 
-            pass
+                pass
 
-        # 0.1 Attempt to flush out any existing data before closing
-        try:
-            recv, recv2 = socket.recvfrom(1024)
-            #print(recv)
-            #print(recv2)
-            #print("2")
-        except Exception as e:
-            #print(e)
-            pass
+            # Second attempt at receiving in case the first one timed out
+            
+            
+            try:
+                recv, recv2 = socket.recvfrom(1024)
+                #print(recv)
+                #print(recv2)
+            except Exception as e:
+                #print(e)
+                pass
+
+        
 
         # 1. Send packet using socket
         if(self.socketType == 'icmp'):
@@ -354,7 +360,8 @@ class Traceroute(NetworkApplication):
         if(delay == 0 and addr == 0):
             
             print("TIMEOUT OCCURED - PACKET LOST")
-            return     
+            return
+
         try:
             hostname = socket.gethostbyaddr(addr[0]) 
             self.printOneResult(addr[0],size,delay,ttl,hostname[0])
@@ -365,11 +372,16 @@ class Traceroute(NetworkApplication):
     
     def __init__(self, args):
         
-        print('Traceroute to: %s...' % (args.hostname))
-        self.timeout = float(input('Enter desired timeout:'))
-        self.socketType = (input('Enter desired socket type (udp or icmp):'))
-        print(self.socketType)
+        print('Traceroute to: %s ...' % (args.hostname), (args.timeout), (args.protocol))
 
+        if args.timeout == None:
+            args.timeout = 1
+
+        if args.protocol == None:
+            args.protocol = 'icmp'
+        
+        self.timeout = args.timeout
+        self.socketType = args.protocol
         addressIP = socket.gethostbyname(args.hostname)
         
         self.receivedPacketNum = 0
@@ -389,7 +401,6 @@ class Traceroute(NetworkApplication):
             while j < 3:
                     
                 resp = self.doOnePing(addressIP,self.timeout,ttl, ID, self.socketType)
-                #print(resp)
                 if resp:
                     delay,addr,info,size = resp #self.doOnePing(addressIP,self.timeout,ttl, ID)
                     #print(addr[0])
@@ -409,8 +420,6 @@ class Traceroute(NetworkApplication):
                     sumTime += delay
 
                     self.printResult(delay,addr,size,ttl)
-                    #j += 1
-                    #ID += 1
                 else:
                     print("TIMEOUT - PACKET LOST")
 
@@ -421,12 +430,10 @@ class Traceroute(NetworkApplication):
             print("-------------------------------------------------------------------------------------------")
                     
             if addr[0] != addressIP:
-                ttl +=1
-                #print("hi")
+                ttl += 1
             else:
-                print("temp")
                 temp = ttl
-                #print(temp)
+                print(f"{temp} hops completed")
                 break
         
         
@@ -571,7 +578,7 @@ class Proxy(NetworkApplication):
 
         if url in self.urls:
             
-            print("Addr is in cache")
+            print("Addr is in cache. Fetching ...")
             tempIndex = self.urls.index(url)
 
             tcpSocket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
@@ -580,36 +587,36 @@ class Proxy(NetworkApplication):
             data = self.cache[tempIndex]
 
             if(len(data) > 0):
-                print("REQUEST DONE: %s\n" % str(addr[0]))
+                print(f"REQUEST DONE: {addr[0]}")
+                print(f"DATA FETCHED FROM LIST INDEX {tempIndex}")
             else:
-                print("REQUEST NOT DONE\n")
+                print("REQUEST NOT DONE")
+
+            tcpSocket.close()
 
         else:
 
-            print("Addr is not in cache")
+            print("Addr is not in cache. Storing ...")
             proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
                 proxySocket.connect((url, 80))
                 proxySocket.sendall(rawData)
-                data  = proxySocket.recv(9999)
+                
+                data = proxySocket.recv(9999)
                 
                 # 5. Send the correct HTTP response error
                 tcpSocket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
 
                 # 6. Send the content of the file to the socket
                 tcpSocket.send(data)
+                tcpSocket.close()
                 proxySocket.close()
-
-                #tempPos = data.decode('utf-8').find("\r\n\r\n")
-                #data = data[tempPos+4:]
-
-                #print(data)
 
                 if(len(data) > 0):
 
-                    print("REQUEST DONE: %s\n" % str(addr[0]))
+                    print(f"REQUEST DONE: {addr[0]}")
                 else:
-                    print("REQUEST NOT DONE\n")
+                    print("REQUEST NOT DONE")
 
             except Exception as e:
                 print(e)
@@ -619,29 +626,7 @@ class Proxy(NetworkApplication):
             self.urls.append(url)
             self.cache.append(data)
 
-    def proxy(self, webserver, port, conn, addr, data, socket):
-        
-        #Creates the proxy socket
-        s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        
-        #Connects and sends the request
-        print("1")
-        s2.connect((webserver, port))
-        print("2")
-        s2.sendall(data)
-        print("3")
-        finalData = s2.recv(1024)
-        print("4")
-        socket.send(str.encode('HTTP/1.0 200 OK\r\n\r\n'))
-        socket.send(data)
-
-
-        #Receives the data and sends to the connection, informing that the request is done
-        #boolean = True
-        #while boolean:
-
-        #    reply = s2.recv(1024) #Sometimes all the information of a website will not be displayed in curl due to the size of the data received
-        
+        print("-------------------------------------------------------------------------------------------") 
 
 
 if __name__ == "__main__":

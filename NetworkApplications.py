@@ -179,9 +179,8 @@ class ICMPPing(NetworkApplication):
             address = socket.gethostbyname(args.hostname)
             # 2. Call doOnePing function, approximately every second
             timeDif, address, dest, packSize, ttl = self.doOnePing(address, 5, i, "hiya")
-            self.printOneResult(address, packSize, timeDif, ttl)
             # 3. Print out the returned delay (and other relevant details) using the printOneResult method
-            #self.printOneResult(address, temp2, temp1, temp3)
+            self.printOneResult(address, packSize, timeDif, ttl)
             # 4. Continue this process until stopped
             i += 1
 
@@ -205,8 +204,6 @@ class Traceroute(NetworkApplication):
         
         # 1. Wait for the socket to receive a reply
         startTime = time.time()
-        
-        #while startTime+timeout > time.time():
             
         try:
 
@@ -214,9 +211,7 @@ class Traceroute(NetworkApplication):
 
         except Exception as e:
             
-            #print(e)
             socket1.close()
-            #break
             return None
 
         # 2. Once received, record time of receipt, otherwise, handle a timeout
@@ -231,11 +226,8 @@ class Traceroute(NetworkApplication):
         
         messagetype, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
         
-        #print(messagetype)
         # 5. Check that the ID matches between the request and reply
         # 6. Return total network delay
-
-        #print(messagetype)
         if(messagetype == 11 and code == 0): #type of ICMP response 
             
             self.receivedPacketNum += 1
@@ -261,7 +253,7 @@ class Traceroute(NetworkApplication):
         # 0. Create packet
         packet = self.packet(ID)
             
-        # 0.1. Attempt to flush out any existing data before closing (only done if a timeout is low)
+        # 0.1. Attempt to flush out any existing data before closing (only done if a timeout is very very low)
         if(self.timeout < 0.5):
             
             try:
@@ -270,12 +262,11 @@ class Traceroute(NetworkApplication):
 
                 pass
 
-            # Second attempt at receiving in case the first one timed out
-            
+            # Second attempt at receiving in case the first one timed out  
             try:
                 recv, recv2 = socket.recvfrom(1024)
             except Exception as e:
-                #print(e)
+                
                 pass
 
         # 1. Send packet using socket
@@ -285,8 +276,6 @@ class Traceroute(NetworkApplication):
 
         elif(self.socketType == 'udp'):
             
-            #print(destinationAddress)
-            #socket.sendto(b"packet",(destinationAddress,34000))
             socket.sendto(packet,(destinationAddress,34000))
         
         # 2. Record time of sending
@@ -313,12 +302,14 @@ class Traceroute(NetworkApplication):
         
        
         # 1. Create ICMP socket, setting the ttl and timeout
+        #If the protocol type is ICMP create one ICMP socket and set the timeout using the correct methods
         if socketType == 'icmp':
 
             s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
             s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set TTL of socket
             s.settimeout(self.timeout)
-            
+
+        #If the protocol type is UDP 2 sockets are needed, one DGRAM socket and one RAW socket    
         else:
             
             #receiving socket 
@@ -327,13 +318,11 @@ class Traceroute(NetworkApplication):
             
             #sending socket
             s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM,socket.getprotobyname("udp"))
-            s2.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
-            #s2.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
-            #s2.settimeout(self.timeout)
+            s2.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl) #set TTL of socket
 
         tempID = ID
 
-        # 2. Call sendOnePing function
+        # 2. Call sendOnePing function passing a sending socket depending on protocol
         if socketType == 'icmp':
             
             self.sendOnePing(s, destinationAddress, tempID)
@@ -341,7 +330,7 @@ class Traceroute(NetworkApplication):
             
             self.sendOnePing(s2, destinationAddress, tempID)
 
-        # 3. Call receiveOnePing function
+        # 3. Call receiveOnePing function, always receive on socket s
         returnVal = self.receiveOnePing(s,self.timeout)
 
         # 4. Close the socket and return the delay & extra info from reciveOnePing
@@ -351,6 +340,7 @@ class Traceroute(NetworkApplication):
     
     def __init__(self, args):
         
+        #Loading the args for traceroute (hostname, timeout, protocol)
         print('Traceroute to: %s ...' % (args.hostname), (args.timeout), (args.protocol))
 
         if args.timeout == None:
@@ -362,6 +352,7 @@ class Traceroute(NetworkApplication):
         self.timeout = args.timeout
         self.socketType = args.protocol
 
+        #If the hostname is an unresolvable address, terminate the program after printing the error which occured
         try:
             
             addressIP = socket.gethostbyname(args.hostname)
@@ -384,14 +375,16 @@ class Traceroute(NetworkApplication):
 
         while ttl < 31: #max num of hops is 30
             
-            print(ttl)
+            #Perform the ping operation 3 times on each ttl
             j = 0
             while j < 3:
-                    
+
+                #Attempt to receive a response, if you dont a timeout occured 
                 resp = self.doOnePing(addressIP,self.timeout,ttl, ID, self.socketType)
                 if resp:
-                    delay,addr,info,size = resp #self.doOnePing(addressIP,self.timeout,ttl, ID)
-                    #print(addr)
+                    
+                    #Unpack contents of resp into specific variables
+                    delay,addr,info,size = resp 
 
                     if lowestTime == 0 and highestTime == 0:
                         
@@ -408,11 +401,13 @@ class Traceroute(NetworkApplication):
                     sumTime += delay
 
                     try:
+                        
                         hostname = socket.gethostbyaddr(addr[0]) 
                         self.printOneResult(addr[0],size,delay,ttl,hostname[0])
                     except:
+                        
                         hostname = None
-                        #UNABLE TO RESOLVE HOST NAME SO PRINT ADDR INSTEAD
+                        #If host name is not resolved print the address instead of the hostname
                         self.printOneResult(addr[0],size,delay,ttl,addr[0])
 
                 else:
@@ -422,9 +417,9 @@ class Traceroute(NetworkApplication):
                 j += 1
                 ID += 1
 
-            #print(addr[0])
             print("-------------------------------------------------------------------------------------------")
-                    
+
+            #Check if current address is the final address    
             if addr[0] != addressIP:
                 ttl += 1
             else:
@@ -433,13 +428,10 @@ class Traceroute(NetworkApplication):
                 break
         
         if temp != None:
-            print(temp)
+            
             avgTime = sumTime/(temp*3)
             packLoss = 100 - ((self.receivedPacketNum / self.expectedPacketNum) * 100)
             self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
-            
-            print(addressIP)
-            print(addr[0])
         
         else:
             print('MAX NUMBER OF HOPS REACHED')
@@ -550,17 +542,10 @@ class Proxy(NetworkApplication):
         
         
         # 2. Extract the path of the requested object from the message (second part of the HTTP header)
-        #Printing the data whilst decoding to ensure it gets trimmed properly
-
-        #print(rawData)
 
         firstTrim = rawData.decode('utf-8').split('\n')[0]
 
-        #print(firstTrim)
-
         url = firstTrim.split(' ')[1]
-
-        #print(url)
         
         #Removing the initial "http://" and the terminating "/" by use of find and trimming
         temp = url.find("://") + 3
@@ -572,6 +557,7 @@ class Proxy(NetworkApplication):
         #Printing out the address for debugging
         print(url)
 
+        #If statement to ensure the addr is not in cache, if it is fetch from cache and send, if not just recv, store and send
         if url in self.urls:
             
             print("Addr is in cache. Fetching ...")
@@ -595,9 +581,11 @@ class Proxy(NetworkApplication):
             print("Addr is not in cache. Storing ...")
             proxySocket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
             try:
+                # 3. Connect to socket and send the request
                 proxySocket.connect((url, 80))
                 proxySocket.sendall(rawData)
             
+                # 4. Receive data on socket after sending request
                 data = proxySocket.recv(99999)
                 
                 # 5. Send the correct HTTP response error
@@ -605,9 +593,12 @@ class Proxy(NetworkApplication):
 
                 # 6. Send the content of the file to the socket
                 tcpSocket.send(data)
+
+                # 7. Close the socket
                 tcpSocket.close()
                 proxySocket.close()
 
+                #Print message regarding the request (i.e is it or not done)
                 if(len(data) > 0):
 
                     print(f"REQUEST DONE: {addr[0]}")
@@ -615,10 +606,12 @@ class Proxy(NetworkApplication):
                     print("REQUEST NOT DONE")
 
             except Exception as e:
+                
                 print(e)
                 tcpSocket.close()
                 proxySocket.close()
 
+            #Appending to cache
             self.urls.append(url)
             self.cache.append(data)
 

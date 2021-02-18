@@ -234,12 +234,19 @@ class Traceroute(NetworkApplication):
         #print(messagetype)
         # 5. Check that the ID matches between the request and reply
         # 6. Return total network delay
+
+        #print(messagetype)
         if(messagetype == 11 and code == 0): #type of ICMP response 
             
             self.receivedPacketNum += 1
             return(self.TimeComparisonVal,addr,None,size)
 
         elif(messagetype == 0 and code == 0):
+            
+            self.receivedPacketNum += 1
+            return(self.TimeComparisonVal,addr,self.Destination,size)
+
+        elif(messagetype == 3):
             
             self.receivedPacketNum += 1
             return(self.TimeComparisonVal,addr,self.Destination,size)
@@ -279,7 +286,8 @@ class Traceroute(NetworkApplication):
         elif(self.socketType == 'udp'):
             
             #print(destinationAddress)
-            socket.sendto(packet,(destinationAddress,1))
+            #socket.sendto(b"packet",(destinationAddress,34000))
+            socket.sendto(packet,(destinationAddress,34000))
         
         # 2. Record time of sending
         self.SendingTime = time.time()
@@ -318,9 +326,10 @@ class Traceroute(NetworkApplication):
             s.settimeout(self.timeout)
             
             #sending socket
-            s2 = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("udp"))
+            s2 = socket.socket(socket.AF_INET, socket.SOCK_DGRAM,socket.getprotobyname("udp"))
             s2.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
-            s2.settimeout(self.timeout)
+            #s2.setsockopt(socket.IPPROTO_IP, socket.IP_MULTICAST_TTL, ttl)
+            #s2.settimeout(self.timeout)
 
         tempID = ID
 
@@ -352,7 +361,15 @@ class Traceroute(NetworkApplication):
         
         self.timeout = args.timeout
         self.socketType = args.protocol
-        addressIP = socket.gethostbyname(args.hostname)
+
+        try:
+            
+            addressIP = socket.gethostbyname(args.hostname)
+        except Exception as e:
+            print(e)
+            print("TERMINATING PROGRAM")
+            sys.exit()
+
         
         self.receivedPacketNum = 0
         self.expectedPacketNum = 0
@@ -363,16 +380,18 @@ class Traceroute(NetworkApplication):
         highestTime = 0
         avgTime = 0
         sumTime = 0
+        temp = None
 
-        while ttl < 61: #max num of hops is 30
+        while ttl < 31: #max num of hops is 30
             
-            #print(ttl)
+            print(ttl)
             j = 0
             while j < 3:
                     
                 resp = self.doOnePing(addressIP,self.timeout,ttl, ID, self.socketType)
                 if resp:
                     delay,addr,info,size = resp #self.doOnePing(addressIP,self.timeout,ttl, ID)
+                    #print(addr)
 
                     if lowestTime == 0 and highestTime == 0:
                         
@@ -413,13 +432,17 @@ class Traceroute(NetworkApplication):
                 print(f"{temp} hops completed")
                 break
         
-        print(temp)
-        avgTime = sumTime/(temp*3)
-        packLoss = 100 - ((self.receivedPacketNum / self.expectedPacketNum) * 100)
-        self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
+        if temp != None:
+            print(temp)
+            avgTime = sumTime/(temp*3)
+            packLoss = 100 - ((self.receivedPacketNum / self.expectedPacketNum) * 100)
+            self.printAdditionalDetails(packLoss, lowestTime, avgTime, highestTime)
+            
+            print(addressIP)
+            print(addr[0])
         
-        print(addressIP)
-        print(addr[0])
+        else:
+            print('MAX NUMBER OF HOPS REACHED')
 
 
 class WebServer(NetworkApplication):

@@ -214,8 +214,10 @@ class Traceroute(NetworkApplication):
 
             except Exception as e:
                 
+                #print(e)
                 socket1.close()
                 break
+                #return None
 
             # 2. Once received, record time of receipt, otherwise, handle a timeout
             self.ReceiveTime = time.time()
@@ -229,6 +231,7 @@ class Traceroute(NetworkApplication):
             
             messagetype, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
             
+            #print(messagetype)
             # 5. Check that the ID matches between the request and reply
             # 6. Return total network delay
             if(messagetype == 11 and code == 0): #type of ICMP response 
@@ -244,9 +247,7 @@ class Traceroute(NetworkApplication):
             else:
 
                 return (0, 0, 0, 0)
-        
-
-
+            
 
     def sendOnePing(self, socket, destinationAddress, ID):
         
@@ -278,7 +279,6 @@ class Traceroute(NetworkApplication):
         elif(self.socketType == 'udp'):
             
             #print(destinationAddress)
-            #socket.sendto(packet,("127.0.0.1",4141))
             socket.sendto(packet,(destinationAddress,1))
         
         # 2. Record time of sending
@@ -297,38 +297,40 @@ class Traceroute(NetworkApplication):
         header = struct.pack("bbHHh", self.ICMP_ECHO_REQUEST, 0, checksum, ID, self.sequence)
 
         self.expectedPacketNum += 1
+        
         return header
-            
-        #elif(self.socketType == 'udp'):
-        #    # 1. Build ICMP header
-        #   header = struct.pack("bbHHh", self.UDP_REQUEST, 0, 0, ID, self.sequence)
-        #   
-        #   # 2. Checksum ICMP packet using given function
-        #    checksum = self.checksum(header)
-        #    
-        #    # 3. Insert checksum into packet by re-packing & return the packet
-        #    header = struct.pack("bbHHh", self.UDP_REQUEST, 0, checksum, ID, self.sequence)
-        #
-        #    self.expectedPacketNum += 1
-        #    return header
+
 
     def doOnePing(self, destinationAddress, timeout, ttl, ID, socketType):
         
+       
         # 1. Create ICMP socket, setting the ttl and timeout
         if socketType == 'icmp':
 
             s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
+            s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set TTL of socket
+            s.settimeout(self.timeout)
             
-        elif socketType == 'udp':
+        else:
+            
+            #receiving socket 
+            s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("icmp"))
+            s.settimeout(self.timeout)
+            
+            #sending socket
+            s2 = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("udp"))
+            s2.setsockopt(socket.IPPROTO_IP, socket.IP_TTL, ttl)
+            s2.settimeout(self.timeout)
 
-            s = socket.socket(socket.AF_INET, socket.SOCK_RAW,socket.getprotobyname("udp"))
-
-        s.setsockopt(socket.SOL_IP, socket.IP_TTL, ttl) #set TTL of socket
-        s.settimeout(self.timeout)
         tempID = ID
 
         # 2. Call sendOnePing function
-        self.sendOnePing(s, destinationAddress, tempID)
+        if socketType == 'icmp':
+            
+            self.sendOnePing(s, destinationAddress, tempID)
+        else:
+            
+            self.sendOnePing(s2, destinationAddress, tempID)
 
         # 3. Call receiveOnePing function
         returnVal = self.receiveOnePing(s,self.timeout)
@@ -572,7 +574,7 @@ class Proxy(NetworkApplication):
             try:
                 proxySocket.connect((url, 80))
                 proxySocket.sendall(rawData)
-                
+            
                 data = proxySocket.recv(99999)
                 
                 # 5. Send the correct HTTP response error

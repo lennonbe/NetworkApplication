@@ -206,47 +206,47 @@ class Traceroute(NetworkApplication):
         # 1. Wait for the socket to receive a reply
         startTime = time.time()
         
-        while startTime+timeout > time.time():
+        #while startTime+timeout > time.time():
             
-            try:
+        try:
 
-                recPacket, addr = socket1.recvfrom(1024)
+            recPacket, addr = socket1.recvfrom(1024)
 
-            except Exception as e:
-                
-                #print(e)
-                socket1.close()
-                break
-                #return None
-
-            # 2. Once received, record time of receipt, otherwise, handle a timeout
-            self.ReceiveTime = time.time()
-
-            # 3. Compare the time of receipt to time of sending, producing the total network delay
-            self.TimeComparisonVal = (self.ReceiveTime - self.SendingTime)*1000
-
-            # 4. Unpack the packet header for useful information, including the ID
-            header = recPacket[20:28]
-            size = sys.getsizeof(recPacket) - 19
+        except Exception as e:
             
-            messagetype, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
+            #print(e)
+            socket1.close()
+            #break
+            return None
+
+        # 2. Once received, record time of receipt, otherwise, handle a timeout
+        self.ReceiveTime = time.time()
+
+        # 3. Compare the time of receipt to time of sending, producing the total network delay
+        self.TimeComparisonVal = (self.ReceiveTime - self.SendingTime)*1000
+
+        # 4. Unpack the packet header for useful information, including the ID
+        header = recPacket[20:28]
+        size = sys.getsizeof(recPacket) - 19
+        
+        messagetype, code, checksum, p_id, sequence = struct.unpack('bbHHh', header)
+        
+        #print(messagetype)
+        # 5. Check that the ID matches between the request and reply
+        # 6. Return total network delay
+        if(messagetype == 11 and code == 0): #type of ICMP response 
             
-            #print(messagetype)
-            # 5. Check that the ID matches between the request and reply
-            # 6. Return total network delay
-            if(messagetype == 11 and code == 0): #type of ICMP response 
-                
-                self.receivedPacketNum += 1
-                return(self.TimeComparisonVal,addr,None,size)
+            self.receivedPacketNum += 1
+            return(self.TimeComparisonVal,addr,None,size)
 
-            elif(messagetype == 0 and code == 0):
-                
-                self.receivedPacketNum += 1
-                return(self.TimeComparisonVal,addr,self.Destination,size)
+        elif(messagetype == 0 and code == 0):
+            
+            self.receivedPacketNum += 1
+            return(self.TimeComparisonVal,addr,self.Destination,size)
 
-            else:
+        else:
 
-                return (0, 0, 0, 0)
+            return (0, 0, 0, 0)
             
 
     def sendOnePing(self, socket, destinationAddress, ID):
